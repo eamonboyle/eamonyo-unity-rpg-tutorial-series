@@ -12,10 +12,20 @@ public class PlayerControls : MonoBehaviour
 
     private Vector2 inputs;
     private Vector3 velocity;
-    private float rotation;
 
-    [SerializeField]
+    private float currentSpeed;
+    private float rotation;
+    private float gravity = -15;
+    private float velocityY;
+    private float terminalVelocity = -25;
+    private float jumpSpeed;
+    private float jumpHeight = 4;
+
+    private Vector3 jumpDirection;
+
     private bool run = true;
+    private bool jumping;
+    private bool jump;
 
     private CharacterController controller;
 
@@ -34,30 +44,80 @@ public class PlayerControls : MonoBehaviour
 
     private void Movement()
     {
-        Vector2 normalizedInputs = inputs;
+        Vector2 normalizedInputs = Vector2.zero;
+
+        if (controller.isGrounded)
+        {
+            normalizedInputs = inputs;
+            currentSpeed = walkSpeed;
+
+            if (run)
+            {
+                currentSpeed *= runSpeed;
+
+                if (normalizedInputs.y < 0)
+                {
+                    currentSpeed = currentSpeed / 2;
+                }
+            }
+        }
+        else
+        {
+            normalizedInputs = Vector2.Lerp(normalizedInputs, Vector2.zero, 0.025f);
+        }
 
         // rotation
         Vector3 characterRotation = transform.eulerAngles + new Vector3(0, rotation * rotateSpeed, 0);
         transform.eulerAngles = characterRotation;
 
-        // running walking
-        float speed = walkSpeed;
-
-        if (run)
+        if (jump && controller.isGrounded)
         {
-            speed *= runSpeed;
-
-            if (normalizedInputs.y < 0)
-            {
-                speed = speed / 2;
-            }
+            Jump();
         }
 
-        // veloctiy
-        velocity = (transform.forward * normalizedInputs.y + transform.right * normalizedInputs.x) * speed;
+        // apply gravity
+        if (!controller.isGrounded && velocityY > terminalVelocity)
+        {
+            velocityY += gravity * Time.deltaTime;
+        }
+
+        // apply inputs
+        if (!jumping)
+        {
+            velocity = (transform.forward * normalizedInputs.y + transform.right * normalizedInputs.x) * currentSpeed + Vector3.up * velocityY;
+        }
+        else
+        {
+            velocity = jumpDirection * jumpSpeed + Vector3.up * velocityY;
+        }
+
 
         // moving character controller
-        controller.Move(velocity);
+        controller.Move(velocity * Time.deltaTime);
+
+        if (controller.isGrounded)
+        {
+            if (jumping)
+            {
+                jumping = false;
+            }
+
+            velocityY = 0;
+        }
+    }
+
+    private void Jump()
+    {
+        if (!jumping)
+        {
+            jumping = true;
+        }
+
+        jumpDirection = (transform.forward * inputs.y + transform.right * inputs.x).normalized;
+
+        jumpSpeed = currentSpeed;
+
+        velocityY = Mathf.Sqrt(-gravity * jumpHeight);
     }
 
     private void GetInputs()
@@ -137,6 +197,19 @@ public class PlayerControls : MonoBehaviour
             rotation = 0;
         }
 
+        if (Input.GetKeyDown(controls.walkRun))
+        {
+            if (run)
+            {
+                run = false;
+            }
+            else
+            {
+                run = true;
+            }
+        }
+
         // jumping
+        jump = Input.GetKey(controls.jump);
     }
 }
